@@ -4,10 +4,9 @@ wxspreadsheet.py: extension of wxPython's CSheet (grid)
 with basic spreadsheet functionality
 """
 
-
 import wx.lib.sheet
+import wx.grid
 import csv
-
 
 class ContextMenu(wx.Menu):
     '''Basic right-click popup menu for CSheet controls.  Currently
@@ -35,28 +34,28 @@ class ContextMenu(wx.Menu):
         paste = wx.MenuItem(self, wx.NewId(), 'Paste')
         self.AppendItem(paste)
         self.Bind(wx.EVT_MENU, self.OnPaste, id=paste.GetId())
-        clear = wx.MenuItem(self,wx.NewId(), 'Clear Selected Cells')
+        clear = wx.MenuItem(self, wx.NewId(), 'Clear Selected Cells')
         self.AppendItem(clear)
         self.Bind(wx.EVT_MENU, self.OnClear, id=clear.GetId())
 
-    def OnInsertRow(self,event):
+    def OnInsertRow(self, event):
         '''Basic "Insert Row(s) Here" function'''
         self.parent.SelectRow(self._getRow())
         self.parent.InsertRows(self._getRow(), self._getSelectionRowSize())
         
-    def OnDeleteRow(self,event):
+    def OnDeleteRow(self, event):
         '''Basic "Delete Row(s)" function'''
         self.parent.DeleteRows(self._getRow(), self._getSelectionRowSize())
         
-    def OnInsertCol(self,event):
+    def OnInsertCol(self, event):
         '''Basic "Insert Column(s) Here" function'''
         self.parent.InsertCols(self._getCol(), self._getSelectionColSize())
         
-    def OnDeleteCol(self,event):
+    def OnDeleteCol(self, event):
         '''Basic "Delete Column(s)" function'''
         self.parent.DeleteCols(self._getCol(), self._getSelectionColSize())
         
-    def OnClear(self,event):
+    def OnClear(self, event):
         '''Erases the contents of the currently selected cell(s).'''
         self.parent.Clear()
 
@@ -110,7 +109,7 @@ class ContextMenu(wx.Menu):
             numcols = len(self.parent.GetSelectedCols())
         return numcols
 
-class SpreadsheetTextCellEditor(wx.lib.sheet.CTextCellEditor):
+class SpreadsheetTextCellEditor(wx.TextCtrl):
     """ Custom text control for cell editing """
     def __init__(self, parent, id, grid):
         wx.TextCtrl.__init__(self, parent, id, "", 
@@ -139,7 +138,7 @@ class SpreadsheetTextCellEditor(wx.lib.sheet.CTextCellEditor):
 class SpreadsheetCellEditor(wx.lib.sheet.CCellEditor):
     """ Custom cell editor """
     def __init__(self, grid):
-        super(SpreadsheetCellEditor,self).__init__(grid)
+        super(SpreadsheetCellEditor, self).__init__(grid)
         
     def Create(self, parent, id, evtHandler):
         """ Create the actual edit control.  Must derive from wxControl.
@@ -154,44 +153,17 @@ class SpreadsheetCellEditor(wx.lib.sheet.CCellEditor):
 class Spreadsheet(wx.lib.sheet.CSheet):
     '''Child class of CSheet (child of wxGrid) that implements a basic
     right-click popup menu.'''
-    def __init__(self,parent):
-        wx.grid.Grid.__init__(self, parent, -1)
-
-        # Init variables
-        self._lastCol = -1              # Init last cell column clicked
-        self._lastRow = -1              # Init last cell row clicked
-        self._selected = None           # Init range currently selected
-                                        # Map string datatype to default renderer/editor
-        self.RegisterDataType(wx.grid.GRID_VALUE_STRING,
-                              wx.grid.GridCellStringRenderer(),
-                              SpreadsheetCellEditor(self))
-
-        self.CreateGrid(4, 3)           # By default start with a 4 x 3 grid
-        self.SetColLabelSize(18)        # Default sizes and alignment
-        self.SetRowLabelSize(50)
-        self.SetRowLabelAlignment(wx.ALIGN_RIGHT, wx.ALIGN_BOTTOM)
-        self.SetColSize(0, 75)          # Default column sizes
-        self.SetColSize(1, 75)
-        self.SetColSize(2, 75)
-
-        # Sink events
-        self.Bind(wx.grid.EVT_GRID_CELL_LEFT_CLICK, self.OnLeftClick)
-        self.Bind(wx.grid.EVT_GRID_CELL_RIGHT_CLICK, self.OnRightClick)
-        self.Bind(wx.grid.EVT_GRID_CELL_LEFT_DCLICK, self.OnLeftDoubleClick)
-        self.Bind(wx.grid.EVT_GRID_RANGE_SELECT, self.OnRangeSelect)
-        self.Bind(wx.grid.EVT_GRID_ROW_SIZE, self.OnRowSize)
-        self.Bind(wx.grid.EVT_GRID_COL_SIZE, self.OnColSize)
-        self.Bind(wx.grid.EVT_GRID_CELL_CHANGE, self.OnCellChange)
-        self.Bind(wx.grid.EVT_GRID_SELECT_CELL, self.OnGridSelectCell)
+    def __init__(self, parent):
+        super(Spreadsheet, self).__init__(parent)
  
     def OnRightClick(self, event):
         '''Defines the right click popup menu for the spreadsheet'''
         
         '''Move the cursor to the cell clicked'''
-        self.SetGridCursor(event.GetRow(),event.GetCol())
+        self.SetGridCursor(event.GetRow(), event.GetCol())
         self.PopupMenu(ContextMenu(self), event.GetPosition())
         
-    def ReadCSV(self,csvfile,_delimiter=',',_quotechar='#'):
+    def ReadCSV(self, csvfile, _delimiter=',' , _quotechar='#'):
         '''Reads a CSV file into the current spreadsheet, replacing
         existing contents (if any).'''
         self.ClearGrid()
@@ -210,19 +182,17 @@ class Spreadsheet(wx.lib.sheet.CSheet):
                         self.SetNumberCols(numcols)
                     colnum = 0
                     for cell in row:
-                        self.SetCellValue(rownum,colnum,str(cell))
+                        self.SetCellValue(rownum, colnum, str(cell))
                         colnum = colnum + 1
                     rownum = rownum + 1
             except csv.Error as err:
-                print csv_reader.line_num,err
+                print("Skipping line {0}: {1}".format(csv_reader.line_num, err))
             
-    def WriteCSV(self,csvfile,_delimiter=',',_quotechar='#',
-        _quoting = csv.QUOTE_MINIMAL):
+    def WriteCSV(self, csvfile, _delimiter=',', _quotechar='#', _quoting = csv.QUOTE_MINIMAL):
         '''Writes the current contents of the spreadsheet to a CSV file'''
-        csv_writer = csv.writer(open(csvfile,'wb'), delimiter=_delimiter,
-            quotechar=_quotechar, quoting=_quoting)
+        csv_writer = csv.writer(open(csvfile, 'wb'), delimiter=_delimiter, quotechar=_quotechar, quoting=_quoting)
         for rownum in range(self.GetNumberRows()):
             rowdata = []
             for colnum in range(self.GetNumberCols()):
-                rowdata.append(self.GetCellValue(rownum,colnum))
+                rowdata.append(self.GetCellValue(rownum, colnum))
             csv_writer.writerow(rowdata)
